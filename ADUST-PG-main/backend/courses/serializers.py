@@ -7,20 +7,57 @@ class AcademicSessionSerializer(serializers.ModelSerializer):
         model = AcademicSession
         fields = ["id", "name", "is_current", "start_date", "end_date"]
 
+    def validate_name(self, value):
+        name = value.strip()
+        matches = AcademicSession.objects.filter(name__iexact=name)
+        if self.instance is not None:
+            matches = matches.exclude(pk=self.instance.pk)
+        if matches.exists():
+            raise serializers.ValidationError("An academic session with this name already exists.")
+        return name
+
+    def validate(self, data):
+        start_date = data.get("start_date", getattr(self.instance, "start_date", None))
+        end_date = data.get("end_date", getattr(self.instance, "end_date", None))
+        if start_date and end_date and start_date > end_date:
+            raise serializers.ValidationError({"end_date": "End date must be on or after the start date."})
+        return data
+
 
 class ProgrammeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Programme
-        fields = ["id", "name", "programme_type", "duration_years"]
+        fields = ["id", "name", "programme_type", "duration_years", "description"]
+
+    def validate_name(self, value):
+        name = value.strip()
+        matches = Programme.objects.filter(name__iexact=name, programme_type=self.initial_data.get(
+            "programme_type", getattr(self.instance, "programme_type", None)
+        ))
+        if self.instance is not None:
+            matches = matches.exclude(pk=self.instance.pk)
+        if matches.exists():
+            raise serializers.ValidationError("A programme with this name and type already exists.")
+        return name
 
 
 class CourseSerializer(serializers.ModelSerializer):
     programme_name = serializers.CharField(source="programme.name", read_only=True)
+    credit_units = serializers.IntegerField(min_value=1)
 
     class Meta:
         model = Course
         fields = ["id", "code", "title", "credit_units", "semester", "programme",
-                  "programme_name", "is_elective", "is_active"]
+                  "programme_name", "is_elective", "is_active", "description"]
+
+    def validate_code(self, value):
+        code = value.strip().upper()
+        matches = Course.objects.filter(code__iexact=code)
+        if self.instance is not None:
+            matches = matches.exclude(pk=self.instance.pk)
+        if matches.exists():
+            raise serializers.ValidationError("A course with this code already exists.")
+        return code
 
 
 class CourseAllocationSerializer(serializers.ModelSerializer):

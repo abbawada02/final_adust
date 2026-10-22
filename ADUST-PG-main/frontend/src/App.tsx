@@ -29,6 +29,7 @@ import StudentCourseMaterialsPage from "./pages/student/StudentCourseMaterialsPa
 import StudentFeesPage from "./pages/student/StudentFeesPage";
 import LecturerTimetablePage from "./pages/lecturer/LecturerTimetablePage";
 import AdminTimetablePage from "./pages/admin/AdminTimetablePage";
+import AdminAcademicPage from "./pages/admin/AdminAcademicPage";
 
 function RoleRedirect() {
   const { user, loading } = useAuth();
@@ -87,6 +88,7 @@ export default function App() {
             <Route path="/admin/lecturers" element={<AdminLecturersPage />} />
             <Route path="/admin/lecturers/all" element={<AdminAllLecturersPage />} />
             <Route path="/admin/courses" element={<AdminCourseAllocationPage />} />
+            <Route path="/admin/academic" element={<AdminAcademicPage />} />
             <Route path="/admin/enrollments" element={<AdminEnrollmentsPage />} />
             <Route path="/admin/results" element={<AdminResultsPage />} />
             <Route path="/admin/timetable" element={<AdminTimetablePage />} />

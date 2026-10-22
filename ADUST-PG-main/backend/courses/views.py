@@ -1,17 +1,21 @@
 import os
 from django.conf import settings
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.http import FileResponse
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 
 from accounts.permissions import IsAdmin, IsActiveStudent, IsActiveLecturer
 from notifications.utils import notify
-from .models import AcademicSession, Course, CourseAllocation, Timetable, Enrollment, CourseMaterial
+from fees.models import FeePayment
+from .models import AcademicSession, Programme, Course, CourseAllocation, Timetable, Enrollment, CourseMaterial
 from .serializers import (
-    AcademicSessionSerializer, CourseSerializer, CourseAllocationSerializer,
+    AcademicSessionSerializer, ProgrammeSerializer, CourseSerializer, CourseAllocationSerializer,
     TimetableSerializer, EnrollmentSerializer, CourseMaterialSerializer,
     AvailableAllocationSerializer,
 )
@@ -228,6 +232,90 @@ class AdminAllocateCourseView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=400)
+
+
+class AdminAcademicListCreateView(ListCreateAPIView):
+    permission_classes = [IsAdmin]
+    pagination_class = None
+
+
+class AdminAcademicDetailView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdmin]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        blocker = self.get_external_deletion_blocker(instance)
+        if blocker:
+            return Response({"detail": blocker}, status=status.HTTP_409_CONFLICT)
+        try:
+            self.perform_destroy(instance)
+        except ProtectedError as exc:
+            references = sorted({
+                str(obj._meta.verbose_name_plural) for obj in exc.protected_objects
+            })
+            detail = "Cannot delete this record while it is referenced"
+            if references:
+                detail += " by " + ", ".join(references)
+            return Response({"detail": detail + "."}, status=status.HTTP_409_CONFLICT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def get_external_deletion_blocker(self, instance):
+        return None
+
+
+class AdminAcademicSessionListCreateView(AdminAcademicListCreateView):
+    queryset = AcademicSession.objects.all()
+    serializer_class = AcademicSessionSerializer
+
+
+class AdminAcademicSessionDetailView(AdminAcademicDetailView):
+    queryset = AcademicSession.objects.all()
+    serializer_class = AcademicSessionSerializer
+
+    def get_external_deletion_blocker(self, instance):
+        if FeePayment.objects.filter(academic_year=instance.name).exists():
+            return "Cannot delete this academic session because fee payments refer to it."
+        return None
+
+    def perform_update(self, serializer):
+        old_name = serializer.instance.name
+        new_name = serializer.validated_data.get("name", old_name)
+        with transaction.atomic():
+            if old_name != new_name:
+                student_ids = FeePayment.objects.filter(
+                    academic_year=old_name
+                ).values_list("student_id", flat=True)
+                if FeePayment.objects.filter(
+                    academic_year=new_name, student_id__in=student_ids
+                ).exists():
+                    raise ValidationError({
+                        "name": "This name conflicts with existing fee payments for one or more students."
+                    })
+            instance = serializer.save()
+            if old_name != instance.name:
+                FeePayment.objects.filter(academic_year=old_name).update(
+                    academic_year=instance.name
+                )
+
+
+class AdminProgrammeListCreateView(AdminAcademicListCreateView):
+    queryset = Programme.objects.all()
+    serializer_class = ProgrammeSerializer
+
+
+class AdminProgrammeDetailView(AdminAcademicDetailView):
+    queryset = Programme.objects.all()
+    serializer_class = ProgrammeSerializer
+
+
+class AdminCourseListCreateView(AdminAcademicListCreateView):
+    queryset = Course.objects.select_related("programme")
+    serializer_class = CourseSerializer
+
+
+class AdminCourseDetailView(AdminAcademicDetailView):
+    queryset = Course.objects.select_related("programme")
+    serializer_class = CourseSerializer
 
 
 class AdminAllocationListView(APIView):

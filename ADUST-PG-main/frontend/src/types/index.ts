@@ -86,6 +86,14 @@ export interface AcademicSession {
   end_date: string;
 }
 
+export interface Programme {
+  id: number;
+  name: string;
+  programme_type: ProgrammeType;
+  duration_years: number;
+  description: string;
+}
+
 export interface Course {
   id: number;
   code: string;
@@ -96,6 +104,7 @@ export interface Course {
   programme_name: string;
   is_elective: boolean;
   is_active: boolean;
+  description: string;
 }
 
 export interface CourseAllocation {

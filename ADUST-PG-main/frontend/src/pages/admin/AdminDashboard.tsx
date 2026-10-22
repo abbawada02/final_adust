@@ -105,6 +105,7 @@ export default function AdminDashboard() {
           <Link to="/admin/fees"     className="btn btn-outline-danger btn-sm">Approve Fees</Link>
           <Link to="/admin/apr"      className="btn btn-outline-secondary btn-sm">Review APRs</Link>
           <Link to="/admin/courses"  className="btn btn-outline-info btn-sm">Manage Courses</Link>
+          <Link to="/admin/academic" className="btn btn-outline-primary btn-sm">Manage Sessions & Programmes</Link>
           <Link to="/admin/timetable" className="btn btn-outline-info btn-sm">Manage Timetable</Link>
           <Link to="/admin/enrollments" className="btn btn-outline-warning btn-sm">Pending Enrollments</Link>
         </div>

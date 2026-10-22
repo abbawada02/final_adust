@@ -15,7 +15,7 @@ class SemesterResultBatch(models.Model):
         APPROVED = 'APPROVED', _('Approved - Visible to Students')
         REJECTED = 'REJECTED', _('Rejected - Lecturers Must Re-upload')
 
-    session = models.ForeignKey(AcademicSession, on_delete=models.CASCADE, related_name='result_batches')
+    session = models.ForeignKey(AcademicSession, on_delete=models.PROTECT, related_name='result_batches')
     semester = models.CharField(max_length=6, choices=[('FIRST', 'First Semester'), ('SECOND', 'Second Semester')])
     programme_type = models.CharField(max_length=3, choices=[('MSC', 'MSc'), ('PHD', 'PhD')])
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING)
@@ -45,8 +45,8 @@ class Result(models.Model):
     Stores the score and auto-computed grade for one student in one enrolled course.
     Triggered to recompute SemesterGPA and CumulativeGPA via post_save signal.
     """
-    enrollment = models.OneToOneField(Enrollment, on_delete=models.CASCADE, related_name='result')
-    batch = models.ForeignKey(SemesterResultBatch, on_delete=models.CASCADE, related_name='results')
+    enrollment = models.OneToOneField(Enrollment, on_delete=models.PROTECT, related_name='result')
+    batch = models.ForeignKey(SemesterResultBatch, on_delete=models.PROTECT, related_name='results')
     score = models.DecimalField(max_digits=5, decimal_places=2)
     grade = models.CharField(max_length=2, editable=False)
     grade_point = models.PositiveSmallIntegerField(editable=False)
@@ -70,7 +70,7 @@ class Result(models.Model):
 class SemesterGPA(models.Model):
     """Computed GPA for one student for one semester. Recalculated on each result save."""
     student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, related_name='semester_gpas')
-    session = models.ForeignKey(AcademicSession, on_delete=models.CASCADE)
+    session = models.ForeignKey(AcademicSession, on_delete=models.PROTECT)
     semester = models.CharField(max_length=6, choices=[('FIRST', 'First Semester'), ('SECOND', 'Second Semester')])
     gpa = models.DecimalField(max_digits=4, decimal_places=2, default=0)
     total_credit_units = models.PositiveSmallIntegerField(default=0)

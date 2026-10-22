@@ -85,6 +85,7 @@ export default function Navbar() {
               <li className="nav-item"><Link className="nav-link" to="/admin/students">Students</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/lecturers">Lecturers</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/courses">Courses</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/admin/academic">Academic Setup</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/timetable">Timetable</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/results">Results</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/fees">Fees</Link></li>
