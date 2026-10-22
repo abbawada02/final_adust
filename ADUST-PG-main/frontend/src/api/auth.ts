@@ -32,12 +32,22 @@ export const registerLecturer = (data: Record<string, unknown>) =>
 export const getPendingStudents = () =>
   api.get<StudentProfile[]>("/accounts/admin/students/pending/");
 
-export const getAllStudents = (statusFilter?: string) =>
+export const getAllStudents = (statusFilter?: string, search?: string) =>
   api.get<StudentProfile[]>("/accounts/admin/students/", {
-    params: statusFilter ? { status: statusFilter } : {},
+    params: {
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(search ? { search } : {}),
+    },
   });
 
-export const updateStudent = (pk: number, data: Record<string, unknown>) =>
+export const updateStudent = (pk: number, data: {
+  first_name?: string;
+  last_name?: string;
+  phone_number?: string;
+  matric_number?: string;
+  programme?: StudentProfile["programme"];
+  admission_year?: number;
+}) =>
   api.patch<StudentProfile>(`/accounts/admin/students/${pk}/`, data);
 
 export const approveStudent = (pk: number, action: "approve" | "reject") =>
@@ -46,12 +56,22 @@ export const approveStudent = (pk: number, action: "approve" | "reject") =>
 export const getPendingLecturers = () =>
   api.get<LecturerProfile[]>("/accounts/admin/lecturers/pending/");
 
-export const getAllLecturers = (statusFilter?: string) =>
+export const getAllLecturers = (statusFilter?: string, search?: string) =>
   api.get<LecturerProfile[]>("/accounts/admin/lecturers/", {
-    params: statusFilter ? { status: statusFilter } : {},
+    params: {
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(search ? { search } : {}),
+    },
   });
 
-export const updateLecturer = (pk: number, data: Record<string, unknown>) =>
+export const updateLecturer = (pk: number, data: {
+  first_name?: string;
+  last_name?: string;
+  phone_number?: string;
+  staff_id?: string;
+  specialization?: string;
+  is_supervisor?: boolean;
+}) =>
   api.patch<LecturerProfile>(`/accounts/admin/lecturers/${pk}/`, data);
 
 export const approveLecturer = (pk: number, action: "approve" | "reject") =>

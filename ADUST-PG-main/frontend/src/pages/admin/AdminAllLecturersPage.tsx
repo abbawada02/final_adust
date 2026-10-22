@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { getAllLecturers, updateLecturer } from "../../api/auth";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import Alert from "../../components/Alert";
@@ -17,24 +18,28 @@ export default function AdminAllLecturersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const { data } = await getAllLecturers(statusFilter || undefined);
-      setLecturers(data);
-    } catch {
-      setError("Could not load lecturers.");
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
-
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    void getAllLecturers(statusFilter || undefined, search)
+      .then(({ data }) => {
+        if (active) {
+          setLecturers(data);
+          setError("");
+        }
+      })
+      .catch(() => {
+        if (active) setError("Could not load lecturers. Please try again.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [statusFilter, search]);
 
   const startEdit = (l: LecturerProfile) => {
     setEditingId(l.id);
@@ -72,20 +77,33 @@ export default function AdminAllLecturersPage() {
 
   return (
     <div className="container py-4">
-      <h4 className="fw-bold mb-1">All Lecturers</h4>
-      <p className="text-muted">View and edit all registered lecturers, regardless of status</p>
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h4 className="fw-bold mb-1">All Lecturers</h4>
+          <p className="text-muted mb-0">View and edit registered lecturers across all statuses.</p>
+        </div>
+        <Link to="/admin/lecturers" className="btn btn-outline-primary btn-sm">Pending Approvals</Link>
+      </div>
       <Alert message={error} />
 
-      <div className="mb-3" style={{ maxWidth: 220 }}>
+      <div className="row g-2 mb-3">
+        <div className="col-md-5">
+          <label className="visually-hidden" htmlFor="lecturer-search">Search lecturers</label>
+          <input id="lecturer-search" className="form-control form-control-sm"
+            placeholder="Search name, email or staff ID"
+            value={search} onChange={(e) => { setLoading(true); setSearch(e.target.value); }} />
+        </div>
+        <div className="col-md-3">
         <select
           className="form-select form-select-sm"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => { setLoading(true); setStatusFilter(e.target.value); }}
         >
           <option value="">All Statuses</option>
           <option value="PENDING">Pending</option>
           <option value="ACTIVE">Active</option>
         </select>
+        </div>
       </div>
 
       {lecturers.length === 0 ? (

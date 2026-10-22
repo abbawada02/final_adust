@@ -1,4 +1,5 @@
 ﻿from django.db import transaction
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -150,14 +151,31 @@ class LecturerRegisterView(APIView):
 
 
 class AllStudentsView(APIView):
-    """GET /api/accounts/admin/students/  — all students, optional ?status=ACTIVE filter."""
+    """GET all students; optional status and name/email/matric-number filters."""
     permission_classes = [IsAdmin]
 
     def get(self, request):
         qs = StudentProfile.objects.select_related('user').all()
         status_param = request.query_params.get('status')
         if status_param:
-            qs = qs.filter(status=status_param.upper())
+            status_param = status_param.upper()
+            if status_param not in StudentProfile.Status.values:
+                return Response(
+                    {'status': 'Invalid status.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            qs = qs.filter(status=status_param)
+        search = request.query_params.get('search', '').strip()
+        if search:
+            search_query = Q()
+            for term in search.split():
+                search_query &= (
+                    Q(user__first_name__icontains=term)
+                    | Q(user__last_name__icontains=term)
+                    | Q(user__email__icontains=term)
+                    | Q(matric_number__icontains=term)
+                )
+            qs = qs.filter(search_query)
         serializer = StudentProfileSerializer(qs, many=True)
         return Response(serializer.data)
 
@@ -224,14 +242,31 @@ class ApproveStudentView(APIView):
 
 
 class AllLecturersView(APIView):
-    """GET /api/accounts/admin/lecturers/  — all lecturers, optional ?status=ACTIVE filter."""
+    """GET all lecturers; optional status and name/email/staff-ID filters."""
     permission_classes = [IsAdmin]
 
     def get(self, request):
         qs = LecturerProfile.objects.select_related('user').all()
         status_param = request.query_params.get('status')
         if status_param:
-            qs = qs.filter(status=status_param.upper())
+            status_param = status_param.upper()
+            if status_param not in LecturerProfile.Status.values:
+                return Response(
+                    {'status': 'Invalid status.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            qs = qs.filter(status=status_param)
+        search = request.query_params.get('search', '').strip()
+        if search:
+            search_query = Q()
+            for term in search.split():
+                search_query &= (
+                    Q(user__first_name__icontains=term)
+                    | Q(user__last_name__icontains=term)
+                    | Q(user__email__icontains=term)
+                    | Q(staff_id__icontains=term)
+                )
+            qs = qs.filter(search_query)
         serializer = LecturerProfileSerializer(qs, many=True)
         return Response(serializer.data)
 

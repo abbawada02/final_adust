@@ -380,10 +380,10 @@ export default function AdminAcademicPage() {
           <div className="card-header bg-white fw-semibold">Course Definitions <span className="badge bg-primary ms-2">{courses.length}</span></div>
           {courses.length === 0 ? <div className="card-body text-center text-muted py-5">No course definitions yet.</div> :
             <div className="table-responsive"><table className="table table-hover align-middle mb-0">
-              <thead className="table-light"><tr><th>Code</th><th>Title</th><th>Programme</th><th>Semester</th><th>Credits</th><th>Status</th><th /></tr></thead>
+              <thead className="table-light"><tr><th>Code</th><th>Title</th><th>Programme</th><th>Semester</th><th>Credits</th><th>Description</th><th>Status</th><th /></tr></thead>
               <tbody>{courses.map((item) => <tr key={item.id}>
                 <td><code>{item.code}</code></td><td>{item.title}</td><td>{item.programme_name}</td>
-                <td>{item.semester}</td><td>{item.credit_units}</td>
+                <td>{item.semester}</td><td>{item.credit_units}</td><td>{item.description || "—"}</td>
                 <td>{item.is_active ? "Active" : "Inactive"}{item.is_elective ? " · Elective" : ""}</td>
                 <td className="text-end text-nowrap">
                   <button className="btn btn-sm btn-outline-primary me-1" onClick={() => editCourse(item)}>Edit</button>

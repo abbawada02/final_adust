@@ -82,8 +82,8 @@ export default function Navbar() {
             </>}
             {user.role === "ADMIN" && <>
               <li className="nav-item"><Link className="nav-link" to="/admin/dashboard">Dashboard</Link></li>
-              <li className="nav-item"><Link className="nav-link" to="/admin/students">Students</Link></li>
-              <li className="nav-item"><Link className="nav-link" to="/admin/lecturers">Lecturers</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/admin/students/all">Students</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/admin/lecturers/all">Lecturers</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/courses">Courses</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/academic">Academic Setup</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/timetable">Timetable</Link></li>

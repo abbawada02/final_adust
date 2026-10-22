@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { getAllStudents, updateStudent } from "../../api/auth";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import Alert from "../../components/Alert";
@@ -17,24 +18,28 @@ export default function AdminAllStudentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const { data } = await getAllStudents(statusFilter || undefined);
-      setStudents(data);
-    } catch {
-      setError("Could not load students.");
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
-
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    void getAllStudents(statusFilter || undefined, search)
+      .then(({ data }) => {
+        if (active) {
+          setStudents(data);
+          setError("");
+        }
+      })
+      .catch(() => {
+        if (active) setError("Could not load students. Please try again.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [statusFilter, search]);
 
   const startEdit = (s: StudentProfile) => {
     setEditingId(s.id);
@@ -72,15 +77,27 @@ export default function AdminAllStudentsPage() {
 
   return (
     <div className="container py-4">
-      <h4 className="fw-bold mb-1">All Students</h4>
-      <p className="text-muted">View and edit all registered students, regardless of status</p>
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h4 className="fw-bold mb-1">All Students</h4>
+          <p className="text-muted mb-0">View and edit registered students across all statuses.</p>
+        </div>
+        <Link to="/admin/students" className="btn btn-outline-primary btn-sm">Pending Approvals</Link>
+      </div>
       <Alert message={error} />
 
-      <div className="mb-3" style={{ maxWidth: 220 }}>
+      <div className="row g-2 mb-3">
+        <div className="col-md-5">
+          <label className="visually-hidden" htmlFor="student-search">Search students</label>
+          <input id="student-search" className="form-control form-control-sm"
+            placeholder="Search name, email or matric number"
+            value={search} onChange={(e) => { setLoading(true); setSearch(e.target.value); }} />
+        </div>
+        <div className="col-md-3">
         <select
           className="form-select form-select-sm"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => { setLoading(true); setStatusFilter(e.target.value); }}
         >
           <option value="">All Statuses</option>
           <option value="PENDING">Pending</option>
@@ -88,6 +105,7 @@ export default function AdminAllStudentsPage() {
           <option value="SUSPENDED">Suspended</option>
           <option value="GRADUATED">Graduated</option>
         </select>
+        </div>
       </div>
 
       {students.length === 0 ? (

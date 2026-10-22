@@ -113,6 +113,7 @@ export interface CourseAllocation {
   course_code: string;
   course_title: string;
   credit_units: number;
+  programme_name: string;
   lecturer: number;
   lecturer_name: string;
   session: number;
