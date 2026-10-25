@@ -14,6 +14,7 @@ urlpatterns = [
     path("materials/recent/",                views.StudentRecentMaterialsView.as_view(),   name="material_recent"),
     path("materials/<int:allocation_pk>/",   views.MaterialListView.as_view(),             name="material_list"),
     path("materials/<int:allocation_pk>/upload/", views.MaterialUploadView.as_view(),      name="material_upload"),
+    path("materials/<int:allocation_pk>/<int:material_pk>/", views.MaterialDeleteView.as_view(), name="material_delete"),
     # Admin
     path("admin/sessions/",                    views.AdminAcademicSessionListCreateView.as_view(), name="admin_session_list"),
     path("admin/sessions/<int:pk>/",           views.AdminAcademicSessionDetailView.as_view(),     name="admin_session_detail"),

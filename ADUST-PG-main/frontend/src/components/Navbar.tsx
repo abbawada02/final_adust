@@ -145,7 +145,9 @@ export default function Navbar() {
                 </div>
               )}
             </div>
-            <span className="text-white small">{user.first_name} {user.last_name}</span>
+            <Link className="text-white small text-decoration-none" to="/profile">
+              {user.first_name} {user.last_name}
+            </Link>
             <button className="btn btn-outline-light btn-sm" onClick={() => void handleLogout()}>
               Logout
             </button>

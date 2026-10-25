@@ -14,15 +14,21 @@ export interface ResultBatchCourseProgress {
   programme_name: string;
   lecturer: string;
   lecturer_email: string;
+  status: "COMPLETE" | "INCOMPLETE" | "NOT_UPLOADED" | "NO_ENROLLMENTS";
   submitted: boolean;
   expected_result_count: number;
   result_count: number;
+  missing_students: {
+    matric_number: string;
+    student_name: string;
+  }[];
 }
 
 export interface ResultBatchProgress {
   expected_course_count: number;
   submitted_course_count: number;
   missing_course_count: number;
+  no_enrollment_course_count: number;
   courses: ResultBatchCourseProgress[];
 }
 export type APRStatus =
@@ -46,6 +52,40 @@ export interface StudentProfile {
   admission_year: number;
   status: ProfileStatus;
   profile_picture: string | null;
+}
+
+export interface StudentReview extends StudentProfile {
+  programme_display: string;
+  registration_note: string;
+  supervisor: {
+    id: number;
+    full_name: string;
+    staff_id: string;
+    specialization: string;
+  } | null;
+  enrollments: {
+    id: number;
+    course_code: string;
+    course_title: string;
+    session_name: string;
+    semester: Semester;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    result: {
+      score: string;
+      grade: string;
+      grade_point: number;
+      batch_status: string;
+    } | null;
+  }[];
+  semester_gpas: SemesterGPA[];
+  cumulative_gpa: CumulativeGPA | null;
+  annual_progress_reports: {
+    id: number;
+    session_name: string;
+    year_of_study: number;
+    status: APRStatus;
+    progression_cleared: boolean;
+  }[];
 }
 
 export interface LecturerProfile {
@@ -72,6 +112,8 @@ export interface AuthUser {
   email: string;
   first_name: string;
   last_name: string;
+  phone_number: string;
+  profile_picture: string | null;
   role: UserRole;
   profile: StudentProfile | LecturerProfile | AdminProfile | null;
 }
@@ -168,6 +210,8 @@ export interface CourseMaterial {
   title: string;
   description: string;
   file: string;
+  file_available: boolean;
+  can_delete: boolean;
   uploaded_at: string;
 }
 

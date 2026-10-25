@@ -25,6 +25,77 @@ class PGMSTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    confirm_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({
+                'confirm_password': 'The passwords do not match.'
+            })
+        user = self.context['user']
+        try:
+            validate_password(attrs['new_password'], user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({'new_password': list(exc.messages)})
+        return attrs
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    confirm_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        if not user.check_password(attrs['current_password']):
+            raise serializers.ValidationError({
+                'current_password': 'Your current password is incorrect.'
+            })
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({
+                'confirm_password': 'The passwords do not match.'
+            })
+        try:
+            validate_password(attrs['new_password'], user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({'new_password': list(exc.messages)})
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save(update_fields=['password'])
+        return user
+
+
+class SelfProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['first_name', 'last_name', 'phone_number', 'profile_picture']
+        extra_kwargs = {
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+            'phone_number': {'required': False},
+            'profile_picture': {'required': False},
+        }
+
+    def validate(self, attrs):
+        permitted_fields = set(self.fields)
+        restricted_fields = set(self.initial_data) - permitted_fields
+        if restricted_fields:
+            raise serializers.ValidationError({
+                field: 'This field cannot be changed through profile management.'
+                for field in sorted(restricted_fields)
+            })
+        return attrs
+
+
 class StudentRegistrationSerializer(serializers.Serializer):
     email = serializers.EmailField()
     first_name = serializers.CharField(max_length=150)
@@ -105,6 +176,96 @@ class StudentProfileSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         return obj.user.get_full_name()
+
+
+class AdminStudentReviewSerializer(StudentProfileSerializer):
+    programme_display = serializers.CharField(source='get_programme_display', read_only=True)
+    registration_note = serializers.CharField(read_only=True)
+    supervisor = serializers.SerializerMethodField()
+    enrollments = serializers.SerializerMethodField()
+    semester_gpas = serializers.SerializerMethodField()
+    cumulative_gpa = serializers.SerializerMethodField()
+    annual_progress_reports = serializers.SerializerMethodField()
+
+    class Meta(StudentProfileSerializer.Meta):
+        fields = StudentProfileSerializer.Meta.fields + [
+            'programme_display', 'registration_note', 'supervisor', 'enrollments',
+            'semester_gpas', 'cumulative_gpa', 'annual_progress_reports',
+        ]
+
+    def get_supervisor(self, obj):
+        if not obj.supervisor_id:
+            return None
+        supervisor = obj.supervisor
+        return {
+            'id': supervisor.id,
+            'full_name': supervisor.user.get_full_name(),
+            'staff_id': supervisor.staff_id,
+            'specialization': supervisor.specialization,
+        }
+
+    def get_enrollments(self, obj):
+        return [
+            {
+                'id': enrollment.id,
+                'course_code': enrollment.allocation.course.code,
+                'course_title': enrollment.allocation.course.title,
+                'session_name': enrollment.allocation.session.name,
+                'semester': enrollment.allocation.semester,
+                'status': enrollment.status,
+                'result': self._result_summary(enrollment),
+            }
+            for enrollment in obj.enrollments.select_related(
+                'allocation__course', 'allocation__session', 'result', 'result__batch'
+            ).order_by('-allocation__session__start_date', 'allocation__semester',
+                       'allocation__course__code')
+        ]
+
+    def _result_summary(self, enrollment):
+        result = getattr(enrollment, 'result', None)
+        if result is None:
+            return None
+        return {
+            'score': result.score,
+            'grade': result.grade,
+            'grade_point': result.grade_point,
+            'batch_status': result.batch.status,
+        }
+
+    def get_semester_gpas(self, obj):
+        from results.serializers import SemesterGPASerializer
+
+        return SemesterGPASerializer(
+            obj.semester_gpas.select_related('session').order_by(
+                'session__start_date', 'semester'
+            ),
+            many=True,
+        ).data
+
+    def get_cumulative_gpa(self, obj):
+        from results.models import CumulativeGPA
+        from results.serializers import CumulativeGPASerializer
+
+        try:
+            cumulative = obj.cumulative_gpa
+        except CumulativeGPA.DoesNotExist:
+            return None
+        return CumulativeGPASerializer(cumulative).data
+
+    def get_annual_progress_reports(self, obj):
+        from reports.models import AnnualProgressReport
+
+        return [
+            {
+                'id': report.id,
+                'session_name': report.session.name,
+                'year_of_study': report.year_of_study,
+                'status': report.status,
+                'progression_cleared': report.progression_cleared,
+            }
+            for report in AnnualProgressReport.objects.filter(student=obj)
+            .select_related('session').order_by('-session__start_date')
+        ]
 
 
 class AdminUpdateStudentSerializer(serializers.ModelSerializer):
@@ -191,7 +352,10 @@ class UserMeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'first_name', 'last_name', 'role', 'profile']
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'phone_number',
+            'profile_picture', 'role', 'profile',
+        ]
 
     def get_profile(self, obj):
         if obj.is_student:

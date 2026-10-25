@@ -1,8 +1,12 @@
 from datetime import date
+import tempfile
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.urls import reverse
+from django.test import override_settings
+from django.urls import clear_url_caches, resolve, reverse
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -10,6 +14,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import CustomUser, LecturerProfile, StudentProfile
 from fees.models import FeePayment
+from pgms import urls as project_urls
 from results.models import SemesterResultBatch
 from .models import (
     AcademicSession, Course, CourseAllocation, CourseMaterial, Programme,
@@ -151,6 +156,23 @@ class TimetableAPITests(TestCase):
 
 class CourseMaterialAPITests(TestCase):
     def setUp(self):
+        self.media_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.media_directory.cleanup)
+        media_settings = override_settings(MEDIA_ROOT=self.media_directory.name, DEBUG=True)
+        media_settings.enable()
+        self.addCleanup(media_settings.disable)
+        original_urlpatterns = project_urls.urlpatterns
+        project_urls.urlpatterns = [
+            pattern for pattern in original_urlpatterns
+            if not str(pattern.pattern).startswith("^media/")
+        ] + static(settings.MEDIA_URL, document_root=self.media_directory.name)
+        clear_url_caches()
+
+        def restore_urlpatterns():
+            project_urls.urlpatterns = original_urlpatterns
+            clear_url_caches()
+
+        self.addCleanup(restore_urlpatterns)
         self.client = APIClient()
         self.session = AcademicSession.objects.create(
             name="2025/2026", is_current=True,
@@ -179,6 +201,13 @@ class CourseMaterialAPITests(TestCase):
         self.lecturer = LecturerProfile.objects.create(
             user=lecturer_user, staff_id="L010", status="ACTIVE",
         )
+        other_lecturer_user = user_model.objects.create_user(
+            email="other-lecturer@example.com", password="test-password-123", role="LECTURER",
+            first_name="Other", last_name="Lecturer",
+        )
+        self.other_lecturer = LecturerProfile.objects.create(
+            user=other_lecturer_user, staff_id="L011", status="ACTIVE",
+        )
         self.enrolled_student = StudentProfile.objects.create(
             user=enrolled_user, programme="MSC", matric_number="M010",
             admission_year=2025, status="ACTIVE",
@@ -195,8 +224,21 @@ class CourseMaterialAPITests(TestCase):
             student=self.enrolled_student, allocation=self.allocation, status="APPROVED",
         )
         self.material = CourseMaterial.objects.create(
-            allocation=self.allocation, title="Lecture Notes 1",
+            allocation=self.allocation, uploader=self.lecturer, title="Lecture Notes 1",
             file=SimpleUploadedFile("notes.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+        )
+        self.other_course = Course.objects.create(
+            code="CSC804", title="Other Course", credit_units=3,
+            semester=Course.Semester.FIRST, programme=self.programme,
+        )
+        self.other_allocation = CourseAllocation.objects.create(
+            lecturer=self.other_lecturer, course=self.other_course, session=self.session,
+            semester=Course.Semester.FIRST,
+        )
+        self.other_material = CourseMaterial.objects.create(
+            allocation=self.other_allocation, uploader=self.other_lecturer,
+            title="Other Lecturer Material",
+            file=SimpleUploadedFile("other.pdf", b"%PDF-other", content_type="application/pdf"),
         )
 
     def test_enrolled_student_sees_material_without_fee_payment(self):
@@ -207,6 +249,8 @@ class CourseMaterialAPITests(TestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["title"], "Lecture Notes 1")
         self.assertEqual(response.data[0]["course_code"], "CSC803")
+        self.assertTrue(response.data[0]["file_available"])
+        self.assertFalse(response.data[0]["can_delete"])
 
     def test_unenrolled_student_cannot_see_material(self):
         self.client.force_authenticate(self.unenrolled_student.user)
@@ -242,11 +286,37 @@ class CourseMaterialAPITests(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["title"], "Week 2 Slides")
-        self.assertTrue(
-            CourseMaterial.objects.filter(
-                allocation=self.allocation, title="Week 2 Slides"
-            ).exists()
-        )
+        material = CourseMaterial.objects.get(allocation=self.allocation, title="Week 2 Slides")
+        self.assertEqual(response.data["file"], material.file.url)
+        self.assertTrue(material.file.storage.exists(material.file.name))
+        with material.file.open("rb") as stored_file:
+            self.assertEqual(stored_file.read(), b"%PDF-1.4 more test content")
+        retrieved = self.client.get(f"/api/courses/materials/{self.allocation.id}/")
+        self.assertEqual(retrieved.status_code, status.HTTP_200_OK)
+        returned_material = next(item for item in retrieved.data if item["id"] == material.id)
+        self.assertTrue(returned_material["file_available"])
+        self.assertEqual(returned_material["file"], response.data["file"])
+
+        media_response = self.client.get(response.data["file"])
+        media_route = resolve(response.data["file"])
+        self.assertEqual(media_response.status_code, status.HTTP_200_OK, media_route.kwargs)
+        try:
+            self.assertEqual(
+                b"".join(media_response.streaming_content),
+                b"%PDF-1.4 more test content",
+            )
+        finally:
+            media_response.close()
+
+    def test_missing_stored_file_is_reported_without_deleting_material_record(self):
+        self.material.file.storage.delete(self.material.file.name)
+        self.client.force_authenticate(self.enrolled_student.user)
+        response = self.client.get(f"/api/courses/materials/{self.allocation.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertFalse(response.data[0]["can_delete"])
+        self.assertFalse(response.data[0]["file_available"])
+        self.assertTrue(CourseMaterial.objects.filter(pk=self.material.pk).exists())
 
     def test_recent_materials_only_includes_allowed_allocations(self):
         self.client.force_authenticate(self.enrolled_student.user)
@@ -264,6 +334,80 @@ class CourseMaterialAPITests(TestCase):
         response = self.client.get(f"/api/courses/materials/{self.allocation.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
+        self.assertTrue(response.data[0]["can_delete"])
+
+    def test_lecturer_can_delete_own_material_and_file(self):
+        self.client.force_authenticate(self.lecturer.user)
+        file_name = self.material.file.name
+        file_storage = self.material.file.storage
+        response = self.client.delete(
+            f"/api/courses/materials/{self.allocation.id}/{self.material.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(CourseMaterial.objects.filter(pk=self.material.pk).exists())
+        self.assertFalse(file_storage.exists(file_name))
+
+    def test_lecturer_cannot_delete_another_lecturers_material(self):
+        self.client.force_authenticate(self.lecturer.user)
+        response = self.client.delete(
+            f"/api/courses/materials/{self.other_allocation.id}/{self.other_material.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(CourseMaterial.objects.filter(pk=self.other_material.pk).exists())
+        self.assertTrue(self.other_material.file.storage.exists(self.other_material.file.name))
+
+    def test_unauthenticated_user_cannot_delete_material(self):
+        response = self.client.delete(
+            f"/api/courses/materials/{self.allocation.id}/{self.material.id}/"
+        )
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
+        )
+        self.assertTrue(CourseMaterial.objects.filter(pk=self.material.pk).exists())
+
+    def test_student_cannot_delete_material(self):
+        self.client.force_authenticate(self.enrolled_student.user)
+        response = self.client.delete(
+            f"/api/courses/materials/{self.allocation.id}/{self.material.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(CourseMaterial.objects.filter(pk=self.material.pk).exists())
+
+    def test_lecturer_can_delete_material_when_file_is_already_missing(self):
+        self.material.file.storage.delete(self.material.file.name)
+        self.client.force_authenticate(self.lecturer.user)
+        response = self.client.delete(
+            f"/api/courses/materials/{self.allocation.id}/{self.material.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(CourseMaterial.objects.filter(pk=self.material.pk).exists())
+
+    def test_deleted_material_is_absent_from_student_lists_and_dashboard_materials(self):
+        self.client.force_authenticate(self.lecturer.user)
+        response = self.client.delete(
+            f"/api/courses/materials/{self.allocation.id}/{self.material.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.client.force_authenticate(self.enrolled_student.user)
+        listed = self.client.get(f"/api/courses/materials/{self.allocation.id}/")
+        recent = self.client.get("/api/courses/materials/recent/")
+        self.assertEqual(listed.data, [])
+        self.assertEqual(recent.data, [])
+
+    def test_upload_records_authenticated_lecturer_as_uploader(self):
+        self.client.force_authenticate(self.lecturer.user)
+        upload = SimpleUploadedFile("owned.pdf", b"%PDF-owned", content_type="application/pdf")
+        response = self.client.post(
+            f"/api/courses/materials/{self.allocation.id}/upload/",
+            {"file": upload},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            CourseMaterial.objects.get(pk=response.data["id"]).uploader_id,
+            self.lecturer.id,
+        )
 
 
 class AdminAcademicCrudTests(APITestCase):

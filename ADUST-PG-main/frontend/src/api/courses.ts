@@ -22,6 +22,8 @@ export const uploadMaterial = (allocationPk: number, formData: FormData) =>
   api.post<CourseMaterial>(`/courses/materials/${allocationPk}/upload/`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+export const deleteMaterial = (allocationPk: number, materialPk: number) =>
+  api.delete(`/courses/materials/${allocationPk}/${materialPk}/`);
 
 // Admin
 export const adminAllocateCourse = (data: Record<string, unknown>) =>

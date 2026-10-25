@@ -1,6 +1,7 @@
 import os
+import logging
 from django.conf import settings
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from django.db.models.deletion import ProtectedError
 from django.http import FileResponse
 from rest_framework import status
@@ -19,6 +20,8 @@ from .serializers import (
     TimetableSerializer, EnrollmentSerializer, CourseMaterialSerializer,
     AvailableAllocationSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CurrentSessionView(APIView):
@@ -164,10 +167,60 @@ class MaterialUploadView(APIView):
 
         material = CourseMaterial.objects.create(
             allocation=allocation,
+            uploader=request.user.lecturer_profile,
             title=request.data.get("title", upload.name),
             file=upload,
         )
-        return Response(CourseMaterialSerializer(material).data, status=status.HTTP_201_CREATED)
+        if not material.file or not material.file.storage.exists(material.file.name):
+            return Response(
+                {"detail": "The uploaded file was not saved to media storage. Please retry the upload."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response(
+            CourseMaterialSerializer(
+                material,
+                context={"lecturer_profile_id": request.user.lecturer_profile.id},
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MaterialDeleteView(APIView):
+    permission_classes = [IsActiveLecturer]
+
+    def delete(self, request, allocation_pk, material_pk):
+        try:
+            material = CourseMaterial.objects.select_related("uploader").get(pk=material_pk)
+        except CourseMaterial.DoesNotExist:
+            return Response({"detail": "Material not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if material.uploader_id != request.user.lecturer_profile.id:
+            return Response(
+                {"detail": "You can only delete materials that you uploaded."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if material.allocation_id != allocation_pk:
+            return Response({"detail": "Material not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        storage = material.file.storage
+        file_name = material.file.name
+        try:
+            with transaction.atomic():
+                material.delete()
+                if file_name and storage.exists(file_name):
+                    storage.delete(file_name)
+                    if storage.exists(file_name):
+                        raise OSError("The uploaded file could not be removed from storage.")
+        except (DatabaseError, OSError):
+            logger.exception(
+                "Failed to delete course material %s and its uploaded file.", material_pk
+            )
+            return Response(
+                {"detail": "The material could not be deleted. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class MaterialListView(APIView):
@@ -191,7 +244,16 @@ class MaterialListView(APIView):
                 return Response({"detail": "You are not the lecturer for this course."}, status=403)
 
         materials = CourseMaterial.objects.filter(allocation=allocation)
-        return Response(CourseMaterialSerializer(materials, many=True).data)
+        lecturer_profile = getattr(request.user, "lecturer_profile", None)
+        return Response(
+            CourseMaterialSerializer(
+                materials,
+                many=True,
+                context={
+                    "lecturer_profile_id": getattr(lecturer_profile, "id", None),
+                },
+            ).data
+        )
 
 
 class StudentRecentMaterialsView(APIView):

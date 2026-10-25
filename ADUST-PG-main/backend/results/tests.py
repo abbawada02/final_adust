@@ -9,9 +9,11 @@ from accounts.models import AdminProfile, CustomUser, LecturerProfile, StudentPr
 from courses.models import AcademicSession, Course, CourseAllocation, Enrollment, Programme
 from .grading import GradingEngine
 from .models import Result, SemesterGPA, SemesterResultBatch, CumulativeGPA
+from .services import get_batch_progress
 from .signals import recompute_gpa
 from .views import (
 	ApproveBatchView,
+	BatchListView,
 	LecturerResultExcelUploadView,
 	LecturerResultUploadView,
 	ScoreSheetTemplateView,
@@ -105,6 +107,25 @@ class ResultWorkflowTests(TestCase):
 		self.assertEqual(Result.objects.filter(batch=self.batch).count(), 3)
 		self.assertEqual(SemesterResultBatch.objects.count(), 1)
 
+	def test_coordinator_batch_list_exposes_all_course_progress(self):
+		self.upload_json(self.lecturers[0], self.allocations[0].enrollments.get())
+		request = self.factory.get("/api/results/batches/")
+		force_authenticate(request, user=self.admin)
+		response = BatchListView.as_view()(request)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(len(response.data), 1)
+		progress = response.data[0]["progress"]
+		self.assertEqual(progress["expected_course_count"], 3)
+		self.assertEqual(progress["submitted_course_count"], 1)
+		self.assertEqual(progress["missing_course_count"], 2)
+		first_course = next(
+			course for course in progress["courses"]
+			if course["allocation"] == self.allocations[0].id
+		)
+		self.assertEqual(first_course["status"], "COMPLETE")
+		self.assertEqual(first_course["lecturer"], "Lecturer0 Test")
+
 	def test_excel_uploads_from_multiple_lecturers_create_one_shared_batch(self):
 		self.batch.delete()
 		batch_ids = set()
@@ -126,6 +147,90 @@ class ResultWorkflowTests(TestCase):
 		self.batch.refresh_from_db()
 		self.assertEqual(self.batch.status, SemesterResultBatch.Status.PENDING)
 		self.assertEqual(response.data["progress"]["missing_course_count"], 2)
+		self.assertEqual(
+			{item["status"] for item in response.data["progress"]["courses"]},
+			{"COMPLETE", "NOT_UPLOADED"},
+		)
+		self.assertEqual(
+			{item["course_code"] for item in response.data["outstanding_courses"]},
+			{self.allocations[1].course.code, self.allocations[2].course.code},
+		)
+
+	def test_course_progress_counts_all_approved_enrollments_and_reports_missing_student(self):
+		second_user = CustomUser.objects.create_user(
+			email="student2@test.com", password="test-password-123", role="STUDENT",
+			first_name="Second", last_name="Student",
+		)
+		second_student = StudentProfile.objects.create(
+			user=second_user, programme="MSC", matric_number="MSC-002",
+			admission_year=2099, status="ACTIVE",
+		)
+		Enrollment.objects.create(
+			student=second_student, allocation=self.allocations[0], status="APPROVED"
+		)
+		self.upload_json(self.lecturers[0], self.allocations[0].enrollments.get(student=self.student))
+
+		progress = get_batch_progress(self.batch)
+		first_course = next(
+			course for course in progress["courses"]
+			if course["allocation"] == self.allocations[0].id
+		)
+		self.assertEqual(first_course["status"], "INCOMPLETE")
+		self.assertEqual(first_course["expected_result_count"], 2)
+		self.assertEqual(first_course["result_count"], 1)
+		self.assertEqual(first_course["missing_students"], [{
+			"matric_number": "MSC-002",
+			"student_name": "Second Student",
+		}])
+		self.assertEqual(progress["missing_course_count"], 3)
+
+	def test_batch_progress_is_scoped_to_programme_session_and_semester(self):
+		other_session = AcademicSession.objects.create(
+			name="2100/2101", start_date="2100-09-01", end_date="2101-08-31"
+		)
+		other_programme = Programme.objects.create(name="Data Science", programme_type="PHD")
+		cases = [
+			("CSCSECOND", self.programme, self.session, "SECOND"),
+			("PHDCOURSE", other_programme, self.session, "FIRST"),
+			("NEXTSESSION", self.programme, other_session, "FIRST"),
+		]
+		for code, programme, session, semester in cases:
+			course = Course.objects.create(
+				code=code, title=code, credit_units=3, semester=semester,
+				programme=programme,
+			)
+			CourseAllocation.objects.create(
+				lecturer=self.lecturers[0], course=course, session=session, semester=semester
+			)
+
+		progress = get_batch_progress(self.batch)
+		self.assertEqual(progress["expected_course_count"], 3)
+		self.assertEqual(
+			{course["course_code"] for course in progress["courses"]},
+			{allocation.course.code for allocation in self.allocations},
+		)
+
+	def test_zero_enrollment_course_does_not_block_complete_batch_approval(self):
+		course = Course.objects.create(
+			code="CSC900", title="No Enrollments", credit_units=3,
+			semester="FIRST", programme=self.programme,
+		)
+		CourseAllocation.objects.create(
+			lecturer=self.lecturers[0], course=course, session=self.session, semester="FIRST"
+		)
+		for lecturer, allocation in zip(self.lecturers, self.allocations):
+			self.upload_json(lecturer, allocation.enrollments.get())
+
+		progress = get_batch_progress(self.batch)
+		no_enrollment_course = next(
+			item for item in progress["courses"] if item["course_code"] == "CSC900"
+		)
+		self.assertEqual(no_enrollment_course["status"], "NO_ENROLLMENTS")
+		self.assertEqual(no_enrollment_course["expected_result_count"], 0)
+		self.assertEqual(no_enrollment_course["result_count"], 0)
+		self.assertEqual(progress["no_enrollment_course_count"], 1)
+		self.assertEqual(progress["missing_course_count"], 0)
+		self.assertEqual(self.approve().status_code, 200)
 
 	def test_batch_with_missing_student_result_cannot_be_approved(self):
 		other_user = CustomUser.objects.create_user(

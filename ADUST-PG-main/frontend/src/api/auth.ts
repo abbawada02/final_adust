@@ -1,5 +1,5 @@
 import api from "./client";
-import type { AuthUser, StudentProfile, LecturerProfile } from "../types";
+import type { AuthUser, StudentProfile, StudentReview, LecturerProfile } from "../types";
 
 export interface LoginResponse { access: string; refresh: string; }
 
@@ -11,6 +11,26 @@ export const logout = (refresh: string) =>
 
 export const getMe = () =>
   api.get<AuthUser>("/accounts/me/");
+
+export const updateMyProfile = (data: FormData) =>
+  api.patch<AuthUser>("/accounts/me/", data, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
+export const changePassword = (data: {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}) => api.post<{ detail: string }>("/accounts/change-password/", data);
+
+export const requestPasswordReset = (email: string) =>
+  api.post<{ detail: string }>("/accounts/forgot-password/", { email });
+
+export const resetPassword = (
+  uid: string,
+  token: string,
+  data: { new_password: string; confirm_password: string },
+) => api.post<{ detail: string }>(`/accounts/reset-password/${uid}/${token}/`, data);
 
 export interface AdminDashboardStats {
   total_students: number;
@@ -39,6 +59,9 @@ export const getAllStudents = (statusFilter?: string, search?: string) =>
       ...(search ? { search } : {}),
     },
   });
+
+export const getAdminStudentReview = (pk: number) =>
+  api.get<StudentReview>(`/accounts/admin/students/${pk}/review/`);
 
 export const updateStudent = (pk: number, data: {
   first_name?: string;

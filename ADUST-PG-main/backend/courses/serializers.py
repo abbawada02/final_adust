@@ -153,8 +153,20 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 class CourseMaterialSerializer(serializers.ModelSerializer):
     course_code = serializers.CharField(source="allocation.course.code", read_only=True)
     course_title = serializers.CharField(source="allocation.course.title", read_only=True)
+    file_available = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseMaterial
-        fields = ["id", "allocation", "course_code", "course_title", "title", "description", "file", "uploaded_at"]
+        fields = [
+            "id", "allocation", "course_code", "course_title", "title", "description",
+            "file", "file_available", "can_delete", "uploaded_at",
+        ]
         read_only_fields = ["id", "uploaded_at", "course_code", "course_title"]
+
+    def get_file_available(self, obj):
+        return bool(obj.file and obj.file.storage.exists(obj.file.name))
+
+    def get_can_delete(self, obj):
+        lecturer_profile_id = self.context.get("lecturer_profile_id")
+        return lecturer_profile_id is not None and obj.uploader_id == lecturer_profile_id

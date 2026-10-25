@@ -4,6 +4,9 @@ import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import LoginPage from "./pages/auth/LoginPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
+import ProfilePage from "./pages/ProfilePage";
 import StudentRegisterPage from "./pages/auth/StudentRegisterPage";
 import LecturerRegisterPage from "./pages/auth/LecturerRegisterPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -30,6 +33,7 @@ import StudentFeesPage from "./pages/student/StudentFeesPage";
 import LecturerTimetablePage from "./pages/lecturer/LecturerTimetablePage";
 import AdminTimetablePage from "./pages/admin/AdminTimetablePage";
 import AdminAcademicPage from "./pages/admin/AdminAcademicPage";
+import AdminStudentReviewPage from "./pages/admin/AdminStudentReviewPage";
 
 function RoleRedirect() {
   const { user, loading } = useAuth();
@@ -49,6 +53,8 @@ export default function App() {
           {/* Public */}
           <Route path="/"                    element={<RoleRedirect />} />
           <Route path="/login"               element={<LoginPage />} />
+          <Route path="/forgot-password"     element={<ForgotPasswordPage />} />
+          <Route path="/reset-password/:uid/:token" element={<ResetPasswordPage />} />
           <Route path="/register/student"    element={<StudentRegisterPage />} />
           <Route path="/register/lecturer"   element={<LecturerRegisterPage />} />
           <Route path="/unauthorized"        element={<div className="text-center p-5"><h3>403 — Access Denied</h3></div>} />
@@ -56,6 +62,7 @@ export default function App() {
           {/* All authenticated users */}
           <Route element={<ProtectedRoute />}>
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Route>
 
           {/* Student */}
@@ -84,6 +91,7 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/students" element={<AdminStudentsPage />} />
+            <Route path="/admin/student-review" element={<AdminStudentReviewPage />} />
             <Route path="/admin/students/all" element={<AdminAllStudentsPage />} />
             <Route path="/admin/lecturers" element={<AdminLecturersPage />} />
             <Route path="/admin/lecturers/all" element={<AdminAllLecturersPage />} />

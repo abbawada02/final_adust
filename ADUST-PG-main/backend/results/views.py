@@ -402,12 +402,26 @@ class ApproveBatchView(APIView):
             progress = get_batch_progress(batch)
             missing = [course for course in progress["courses"] if not course["submitted"]]
             if not progress["expected_course_count"] or missing:
+                outstanding = [
+                    {
+                        "course_code": course["course_code"],
+                        "course_title": course["course_title"],
+                        "status": course["status"],
+                        "submitted": course["result_count"],
+                        "expected": course["expected_result_count"],
+                        "missing_students": course["missing_students"],
+                    }
+                    for course in missing
+                ]
                 return Response({
                     "detail": (
-                        "Cannot approve this batch until every allocated course has submitted "
-                        "results for all approved enrollments."
+                        "Cannot approve this batch until every course with approved "
+                        "enrollments has submitted all required results."
+                        if progress["expected_course_count"]
+                        else "Cannot approve this batch because it has no course allocations."
                     ),
                     "progress": progress,
+                    "outstanding_courses": outstanding,
                 }, status=400)
             batch.status = SemesterResultBatch.Status.APPROVED
             batch.coordinator_comment = comment
