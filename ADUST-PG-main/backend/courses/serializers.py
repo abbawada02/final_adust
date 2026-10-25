@@ -68,18 +68,28 @@ class CourseAllocationSerializer(serializers.ModelSerializer):
     lecturer_name = serializers.SerializerMethodField()
     session_name = serializers.CharField(source="session.name", read_only=True)
     enrolled_count = serializers.SerializerMethodField()
+    result_batch_status = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseAllocation
         fields = ["id", "course", "course_code", "course_title", "credit_units",
                   "programme_name", "lecturer", "lecturer_name", "session", "session_name", "semester",
-                  "enrolled_count"]
+                  "enrolled_count", "result_batch_status"]
 
     def get_lecturer_name(self, obj):
         return obj.lecturer.user.get_full_name()
 
     def get_enrolled_count(self, obj):
         return obj.enrollments.filter(status="APPROVED").count()
+
+    def get_result_batch_status(self, obj):
+        from results.models import SemesterResultBatch
+
+        return SemesterResultBatch.objects.filter(
+            session_id=obj.session_id,
+            semester=obj.semester,
+            programme_type=obj.course.programme.programme_type,
+        ).values_list("status", flat=True).first()
 
 
 class AvailableAllocationSerializer(serializers.ModelSerializer):

@@ -18,6 +18,13 @@ export interface ResultBatchCourseProgress {
   submitted: boolean;
   expected_result_count: number;
   result_count: number;
+  submitted_results: {
+    matric_number: string;
+    student_name: string;
+    score: string;
+    grade: GradeValue;
+    grade_point: number;
+  }[];
   missing_students: {
     matric_number: string;
     student_name: string;
@@ -162,6 +169,7 @@ export interface CourseAllocation {
   session_name: string;
   semester: Semester;
   enrolled_count: number;
+  result_batch_status: ResultBatchStatus | null;
 }
 
 export interface AvailableAllocation {

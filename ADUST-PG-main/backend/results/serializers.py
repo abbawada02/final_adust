@@ -33,7 +33,10 @@ class SemesterResultBatchSerializer(serializers.ModelSerializer):
         fields = ["id", "session", "session_name", "semester", "programme_type",
                   "status", "coordinator_comment", "approved_at", "approved_by",
               "approved_by_name", "created_at", "progress"]
-        read_only_fields = ["id", "session_name", "approved_by_name", "created_at"]
+        read_only_fields = [
+            "id", "session_name", "status", "coordinator_comment", "approved_at",
+            "approved_by", "approved_by_name", "created_at",
+        ]
 
     def get_approved_by_name(self, obj):
         if obj.approved_by:

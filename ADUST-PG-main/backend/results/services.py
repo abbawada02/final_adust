@@ -28,6 +28,21 @@ def get_batch_progress(batch):
             enrollment__status=Enrollment.Status.APPROVED,
         ).values_list("enrollment_id", flat=True)
     )
+    submitted_results_by_allocation = defaultdict(list)
+    for result in Result.objects.filter(
+        batch=batch,
+        enrollment__allocation_id__in=allocation_ids,
+        enrollment__status=Enrollment.Status.APPROVED,
+    ).select_related("enrollment__student__user").order_by(
+        "enrollment__student__matric_number"
+    ):
+        submitted_results_by_allocation[result.enrollment.allocation_id].append({
+            "matric_number": result.enrollment.student.matric_number,
+            "student_name": result.enrollment.student.user.get_full_name(),
+            "score": result.score,
+            "grade": result.grade,
+            "grade_point": result.grade_point,
+        })
 
     courses = []
     for allocation in allocations:
@@ -65,6 +80,7 @@ def get_batch_progress(batch):
                 }
                 for enrollment in missing_enrollments
             ],
+            "submitted_results": submitted_results_by_allocation[allocation.id],
         })
 
     return {

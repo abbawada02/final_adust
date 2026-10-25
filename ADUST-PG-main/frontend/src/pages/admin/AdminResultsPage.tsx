@@ -184,7 +184,7 @@ export default function AdminResultsPage() {
                                 <th>Lecturer</th>
                                 <th>Submitted / expected</th>
                                 <th>Status</th>
-                                <th>Outstanding results</th>
+                                <th>{batch.status === "APPROVED" ? "Submitted results" : "Outstanding / submitted results"}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -212,15 +212,29 @@ export default function AdminResultsPage() {
                                     <td>{course.result_count} / {course.expected_result_count}</td>
                                     <td><span className={`badge text-bg-${badge[0]}`}>{badge[1]}</span></td>
                                     <td>
-                                      {course.missing_students.length === 0 ? "—" : (
-                                        <ul className="mb-0 ps-3">
-                                          {course.missing_students.map((student) => (
-                                            <li key={student.matric_number}>
-                                              {student.matric_number} — {student.student_name}
+                                      {course.submitted_results.length > 0 && (
+                                        <ul className="mb-2 ps-3">
+                                          {course.submitted_results.map((result) => (
+                                            <li key={result.matric_number}>
+                                              {result.matric_number} — {result.student_name}:{" "}
+                                              {result.score} ({result.grade}, {result.grade_point} GP)
                                             </li>
                                           ))}
                                         </ul>
                                       )}
+                                      {course.missing_students.length > 0 && (
+                                        <div>
+                                          <strong>Missing:</strong>
+                                          <ul className="mb-0 ps-3">
+                                            {course.missing_students.map((student) => (
+                                              <li key={student.matric_number}>
+                                                {student.matric_number} — {student.student_name}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                      {course.submitted_results.length === 0 && course.missing_students.length === 0 && "—"}
                                     </td>
                                   </tr>
                                 );

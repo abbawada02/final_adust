@@ -37,6 +37,7 @@ export default function LecturerResultsUploadPage() {
   }, [preselected]);
 
   const allocation = allocations.find((a) => a.id === allocationId) ?? null;
+  const batchApproved = allocation?.result_batch_status === "APPROVED";
 
   async function apiErrorDetail(err: unknown): Promise<string | undefined> {
     if (!isAxiosError(err) || !err.response) return undefined;
@@ -140,6 +141,13 @@ export default function LecturerResultsUploadPage() {
         </div>
       </div>
 
+      {batchApproved ? (
+        <div className="alert alert-success" role="status">
+          <strong>Approved — Read Only.</strong> This result batch has been approved and published.
+          Scores remain available for viewing, but uploads and edits are locked.
+        </div>
+      ) : (
+        <>
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-header bg-white fw-semibold">2. Download Blank Score Sheet</div>
         <div className="card-body">
@@ -184,6 +192,8 @@ export default function LecturerResultsUploadPage() {
           </form>
         </div>
       </div>
+        </>
+      )}
 
       {report && (
         <div className="card border-0 shadow-sm">
