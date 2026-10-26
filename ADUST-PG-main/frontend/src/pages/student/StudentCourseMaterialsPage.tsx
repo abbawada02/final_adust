@@ -92,14 +92,18 @@ export default function StudentCourseMaterialsPage() {
                       })}
                     </div>
                   </div>
-                  <a
-                    href={m.file}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-sm btn-primary text-nowrap"
-                  >
-                    View / Download
-                  </a>
+                  {m.file_available ? (
+                    <a
+                      href={m.file}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-sm btn-primary text-nowrap"
+                    >
+                      View / Download
+                    </a>
+                  ) : (
+                    <span className="text-danger small">File missing from media storage</span>
+                  )}
                 </div>
               </li>
             ))}

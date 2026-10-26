@@ -82,9 +82,10 @@ export default function Navbar() {
             </>}
             {user.role === "ADMIN" && <>
               <li className="nav-item"><Link className="nav-link" to="/admin/dashboard">Dashboard</Link></li>
-              <li className="nav-item"><Link className="nav-link" to="/admin/students">Students</Link></li>
-              <li className="nav-item"><Link className="nav-link" to="/admin/lecturers">Lecturers</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/admin/students/all">Students</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/admin/lecturers/all">Lecturers</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/courses">Courses</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/admin/academic">Academic Setup</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/timetable">Timetable</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/results">Results</Link></li>
               <li className="nav-item"><Link className="nav-link" to="/admin/fees">Fees</Link></li>
@@ -144,7 +145,9 @@ export default function Navbar() {
                 </div>
               )}
             </div>
-            <span className="text-white small">{user.first_name} {user.last_name}</span>
+            <Link className="text-white small text-decoration-none" to="/profile">
+              {user.first_name} {user.last_name}
+            </Link>
             <button className="btn btn-outline-light btn-sm" onClick={() => void handleLogout()}>
               Logout
             </button>

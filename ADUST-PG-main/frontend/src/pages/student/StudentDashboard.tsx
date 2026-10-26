@@ -122,9 +122,13 @@ export default function StudentDashboard() {
                         {new Date(m.uploaded_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                       </span>
                     </div>
-                    <a href={m.file} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
-                      View
-                    </a>
+                    {m.file_available ? (
+                      <a href={m.file} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
+                        View
+                      </a>
+                    ) : (
+                      <span className="text-danger small">File unavailable</span>
+                    )}
                   </li>
                 ))}
               </ul>

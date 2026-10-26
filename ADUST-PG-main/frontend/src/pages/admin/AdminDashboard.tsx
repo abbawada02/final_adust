@@ -100,11 +100,12 @@ export default function AdminDashboard() {
       <div className="card border-0 shadow-sm">
         <div className="card-header bg-white fw-bold">Quick Actions</div>
         <div className="card-body d-flex flex-wrap gap-2">
-          <Link to="/admin/students" className="btn btn-outline-warning btn-sm">Review Students</Link>
+          <Link to="/admin/student-review" className="btn btn-outline-warning btn-sm">Review Students</Link>
           <Link to="/admin/results"  className="btn btn-outline-primary btn-sm">Approve Results</Link>
           <Link to="/admin/fees"     className="btn btn-outline-danger btn-sm">Approve Fees</Link>
           <Link to="/admin/apr"      className="btn btn-outline-secondary btn-sm">Review APRs</Link>
           <Link to="/admin/courses"  className="btn btn-outline-info btn-sm">Manage Courses</Link>
+          <Link to="/admin/academic" className="btn btn-outline-primary btn-sm">Manage Sessions & Programmes</Link>
           <Link to="/admin/timetable" className="btn btn-outline-info btn-sm">Manage Timetable</Link>
           <Link to="/admin/enrollments" className="btn btn-outline-warning btn-sm">Pending Enrollments</Link>
         </div>
